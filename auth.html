@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#064e38"><title>Sign in — PennyWise</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="auth.css">
+</head>
+<body class="auth-page">
+  <main class="auth-shell">
+    <section class="auth-brand"><div class="auth-mark">₱</div><p class="auth-eyebrow">YOUR MONEY, IN BETTER FOCUS</p><h1>PennyWise</h1><p class="auth-brand-copy">Track your money with clarity. Your accounts, transactions, budgets and ListaPay records stay private to your account.</p><div class="auth-trust"><span>●</span> Secure account · Cloud sync · Your own data</div></section>
+    <section class="auth-card">
+      <div class="auth-tabs" role="tablist"><button type="button" class="active" data-mode="login">Log in</button><button type="button" data-mode="signup">Create account</button></div>
+      <h2 id="auth-title">Welcome back</h2><p class="auth-muted" id="auth-subtitle">Log in to continue to your money dashboard.</p>
+      <div id="auth-notice" class="auth-notice" role="status" hidden></div>
+      <form id="auth-form" novalidate>
+        <div class="auth-field" id="username-wrap" hidden><label for="username">Username</label><input id="username" name="username" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" placeholder="e.g. brien_inocencio"></div>
+        <div class="auth-field"><label for="email">Email address</label><input id="email" name="email" type="email" autocomplete="email" maxlength="254" placeholder="you@example.com" required></div>
+        <div class="auth-field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" minlength="8" placeholder="At least 8 characters" required></div>
+        <button class="auth-primary" id="submit-btn" type="submit">Log in</button>
+      </form>
+      <div class="auth-divider"><span>or continue with</span></div>
+      <button class="auth-google" id="google-btn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.52h3.24c1.9-1.75 2.98-4.33 2.98-7.37Z"/><path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.4l-3.24-2.52c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.75-5.59-4.1H3.06v2.6A10 10 0 0 0 12 22Z"/><path fill="#FBBC05" d="M6.41 13.94a6 6 0 0 1 0-3.88v-2.6H3.06a10 10 0 0 0 0 9.08l3.35-2.6Z"/><path fill="#EA4335" d="M12 5.96c1.47 0 2.8.5 3.84 1.5l2.88-2.88A9.63 9.63 0 0 0 12 2a10 10 0 0 0-8.94 5.46l3.35 2.6C7.2 7.71 9.4 5.96 12 5.96Z"/></svg> Continue with Google</button>
+      <p class="auth-legal">By continuing, you agree to use PennyWise responsibly. Never share your password with anyone.</p>
+    </section>
+  </main>
+  <script src="supabase-config.js"></script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="supabase-client.js"></script><script src="auth.js"></script>
+</body></html>
