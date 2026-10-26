@@ -12,6 +12,7 @@
   const escapeHTML = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let currentUser = null;
+  let signingOut = false; // blocks any cloud upload once sign-out has begun
   function showBlocking(title, detail, isError) {
     document.body.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;background:#f4f8f5;color:#16352a;font-family:Poppins,Arial,sans-serif;padding:24px"><section style="max-width:520px;background:white;border:1px solid #e1e9e3;border-radius:20px;padding:28px;box-shadow:0 20px 60px #1232"><div style="font-size:24px;font-weight:700;color:${isError ? '#b42318' : '#08754d'}">${escapeHTML(title)}</div><p style="line-height:1.7;color:#617168">${escapeHTML(detail)}</p>${isError ? '<a href="auth.html" style="color:#08754d;font-weight:600">Return to sign in</a>' : ''}</section></main>`;
   }
@@ -70,9 +71,15 @@
         return;
       }
     }
-    if (currentUser) backupLocal(currentUser.id, snapshot());
+    // Data is already synced (or the user accepted the risk). From here on, never upload.
+    signingOut = true;
+    if (currentUser) {
+      backupLocal(currentUser.id, snapshot());
+      localStorage.removeItem('pennywise_migration_done_' + currentUser.id); // force a cloud load next login
+    }
     replaceLocal({});
-    await window.pwSupabase.auth.signOut();
+    try { await window.pwSupabase.auth.signOut(); }
+    catch (e) { console.error('Sign out error:', e); }
     location.replace('auth.html');
   };
 
@@ -94,7 +101,8 @@
     try {
       const local = snapshot();
       const migrationKey = `pennywise_migration_done_${user.id}`;
-      const migrationAlreadyResolved = localStorage.getItem(migrationKey) === '1';
+      const hasLocalCache = Object.keys(local).length > 0;
+      const migrationAlreadyResolved = localStorage.getItem(migrationKey) === '1' && hasLocalCache;
 
       // The localStorage cache is already initialized for this user after the first
       // successful migration. On ordinary page navigation, don't block the UI or
@@ -140,7 +148,7 @@
       const nativeSet = Storage.prototype.setItem, nativeRemove = Storage.prototype.removeItem;
       let syncingInternally = false;
       async function syncNow() {
-        if (!dirty) return chain;
+        if (signingOut || !dirty) return chain;
         dirty = false;
         const payload = snapshot();
         setCloudStatus('Saving…', false);
@@ -149,7 +157,7 @@
       }
       window.pwCloudSyncNow = syncNow;
       function queueSync() {
-        if (syncingInternally) return;
+        if (syncingInternally || signingOut) return;
         dirty = true; setCloudStatus('Changes pending', false);
         clearTimeout(timer); timer = setTimeout(() => { syncNow().catch(() => { }); }, 650);
       }
