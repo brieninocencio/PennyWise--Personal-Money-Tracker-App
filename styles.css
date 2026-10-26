@@ -1638,3 +1638,46 @@ textarea.input {
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
+
+/* ---------- first-paint placeholder (removed by auth-boot.js once the app shell exists) ---------- */
+html {
+  background: #f6faf7;
+}
+
+html.pw-loading body::before,
+html.pw-loading body::after {
+  content: "";
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* dark green sidebar */
+html.pw-loading body::before {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 232px;
+  background: #064e38;
+}
+
+/* white top bar */
+html.pw-loading body::after {
+  top: 0;
+  left: 232px;
+  right: 0;
+  height: 64px;
+  background: #fff;
+  border-bottom: 1px solid #e8f0eb;
+}
+
+@media (max-width: 768px) {
+  html.pw-loading body::before {
+    display: none;
+  }
+
+  html.pw-loading body::after {
+    left: 0;
+    height: 56px;
+  }
+}

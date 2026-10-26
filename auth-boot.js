@@ -12,9 +12,13 @@
   const escapeHTML = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   let currentUser = null;
+  let bodyReplaced = false;
   let signingOut = false; // blocks any cloud upload once sign-out has begun
   function showBlocking(title, detail, isError) {
-    document.body.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;background:#f4f8f5;color:#16352a;font-family:Poppins,Arial,sans-serif;padding:24px"><section style="max-width:520px;background:white;border:1px solid #e1e9e3;border-radius:20px;padding:28px;box-shadow:0 20px 60px #1232"><div style="font-size:24px;font-weight:700;color:${isError ? '#b42318' : '#08754d'}">${escapeHTML(title)}</div><p style="line-height:1.7;color:#617168">${escapeHTML(detail)}</p>${isError ? '<a href="auth.html" style="color:#08754d;font-weight:600">Return to sign in</a>' : ''}</section></main>`;
+
+    document.documentElement.classList.remove('pw-loading');
+    bodyReplaced = true;
+    if (bodyReplaced) document.body.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;background:#f4f8f5;color:#16352a;font-family:Poppins,Arial,sans-serif;padding:24px"><section style="max-width:520px;background:white;border:1px solid #e1e9e3;border-radius:20px;padding:28px;box-shadow:0 20px 60px #1232"><div style="font-size:24px;font-weight:700;color:${isError ? '#b42318' : '#08754d'}">${escapeHTML(title)}</div><p style="line-height:1.7;color:#617168">${escapeHTML(detail)}</p>${isError ? '<a href="auth.html" style="color:#08754d;font-weight:600">Return to sign in</a>' : ''}</section></main>`;
   }
   function snapshot() {
     const out = {};
@@ -143,6 +147,7 @@
       // app.js registers its renderer on DOMContentLoaded; authentication is asynchronous,
       // so explicitly dispatch it after both original scripts have loaded.
       if (document.readyState !== 'loading') document.dispatchEvent(new Event('DOMContentLoaded')); // otherwise the browser's upcoming event will initialize the app
+      requestAnimationFrame(() => document.documentElement.classList.remove('pw-loading'));
       addCloudControls(user, 'Cloud ready');
       let timer = null, chain = Promise.resolve(), dirty = false;
       const nativeSet = Storage.prototype.setItem, nativeRemove = Storage.prototype.removeItem;
