@@ -11,6 +11,7 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const escapeHTML = (value) => String(value == null ? '' : value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+  let currentUser = null;
   function showBlocking(title, detail, isError) {
     document.body.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;background:#f4f8f5;color:#16352a;font-family:Poppins,Arial,sans-serif;padding:24px"><section style="max-width:520px;background:white;border:1px solid #e1e9e3;border-radius:20px;padding:28px;box-shadow:0 20px 60px #1232"><div style="font-size:24px;font-weight:700;color:${isError ? '#b42318' : '#08754d'}">${escapeHTML(title)}</div><p style="line-height:1.7;color:#617168">${escapeHTML(detail)}</p>${isError ? '<a href="auth.html" style="color:#08754d;font-weight:600">Return to sign in</a>' : ''}</section></main>`;
   }
@@ -23,7 +24,7 @@
     return out;
   }
   function hasMeaningfulLocalData(data) {
-    const keys = ['financeApp_accounts','financeApp_transactions','financeApp_listapay','financeApp_payments'];
+    const keys = ['financeApp_accounts', 'financeApp_transactions', 'financeApp_listapay', 'financeApp_payments'];
     return keys.some((key) => { try { const v = JSON.parse(data[key] || '[]'); return Array.isArray(v) && v.length > 0; } catch (_) { return Boolean(data[key]); } }) || Boolean(data.financeApp_monthlyBudget);
   }
   function backupLocal(userId, data) {
@@ -49,26 +50,38 @@
   function loadScript(src) {
     return new Promise((resolve, reject) => { const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('Could not load ' + src)); document.body.appendChild(s); });
   }
+  // Expose global sign-out function inside boot()
+  window.pwSignOut = async function (btnElement) {
+    if (btnElement) {
+      btnElement.disabled = true;
+      btnElement.textContent = 'Signing out...';
+    }
+    try {
+      await window.pwCloudSyncNow();
+    } catch (e) {
+      const proceed = confirm(
+        'The latest changes could not be synced to the cloud. Sign out anyway? Unsynced changes may be lost from this device.'
+      );
+      if (!proceed) {
+        if (btnElement) {
+          btnElement.disabled = false;
+          btnElement.textContent = 'Sign out';
+        }
+        return;
+      }
+    }
+    if (currentUser) backupLocal(currentUser.id, snapshot());
+    replaceLocal({});
+    await window.pwSupabase.auth.signOut();
+    location.replace('auth.html');
+  };
+
   function addCloudControls(user, initialStatus) {
-    const chip = document.createElement('div');
-    chip.id = 'pw-cloud-status';
-    chip.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:9998;display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fff;border:1px solid #dce8df;border-radius:999px;box-shadow:0 5px 22px #153c2918;font:12px Poppins,Arial,sans-serif;color:#245541;max-width:calc(100vw - 32px)';
-    chip.innerHTML = `<span id="pw-cloud-dot" style="width:7px;height:7px;border-radius:50%;background:#16a34a;flex:none"></span><span id="pw-cloud-label">${initialStatus}</span><button id="pw-signout" type="button" style="border:0;border-left:1px solid #dce8df;padding-left:10px;background:transparent;color:#08754d;font:600 12px Poppins,Arial,sans-serif;cursor:pointer">Sign out</button>`;
-    document.body.appendChild(chip);
-    $('#pw-signout').addEventListener('click', async () => {
-      const button = $('#pw-signout'); button.disabled = true; button.textContent = 'Saving…';
-      try { await window.pwCloudSyncNow(); }
-      catch (e) { const proceed = confirm('The latest changes could not be synced to the cloud. Sign out anyway? Unsynced changes may be lost from this device.'); if (!proceed) { button.disabled = false; button.textContent = 'Sign out'; return; } }
-      backupLocal(user.id, snapshot());
-      replaceLocal({});
-      await window.pwSupabase.auth.signOut();
-      location.replace('auth.html');
-    });
+    // Empty function keeps widget hidden without breaking calls
   }
+
   function setCloudStatus(text, failed) {
-    const label = $('#pw-cloud-label'), dot = $('#pw-cloud-dot');
-    if (label) label.textContent = text;
-    if (dot) dot.style.background = failed ? '#dc2626' : (text.toLowerCase().includes('sync') || text.toLowerCase().includes('saving') ? '#d97706' : '#16a34a');
+    // Empty function prevents ReferenceError during background sync updates
   }
   async function boot() {
     if (!CONFIGURED) return showBlocking('Supabase setup required', 'Add your Supabase project URL and publishable/anon key in supabase-config.js. Never use a service_role key in browser code.', true);
@@ -77,6 +90,7 @@
     catch (e) { return showBlocking('Could not check your session', 'Check your internet connection and Supabase project configuration, then try again.', true); }
     const user = sessionResult.data && sessionResult.data.session && sessionResult.data.session.user;
     if (!user) return location.replace('auth.html');
+    currentUser = user;
     try {
       const local = snapshot();
       const migrationKey = `pennywise_migration_done_${user.id}`;
@@ -106,7 +120,7 @@
           } else {
             replaceLocal({});
             const name = (user.user_metadata && user.user_metadata.username) || (user.email ? user.email.split('@')[0] : 'PennyWise User');
-            localStorage.setItem('financeApp_userName', name.slice(0,40));
+            localStorage.setItem('financeApp_userName', name.slice(0, 40));
             await saveCloud(user.id, snapshot());
           }
           localStorage.setItem(migrationKey, '1');
@@ -130,22 +144,22 @@
         dirty = false;
         const payload = snapshot();
         setCloudStatus('Saving…', false);
-        chain = chain.catch(() => {}).then(() => saveCloud(user.id, payload)).then(() => setCloudStatus('Cloud synced', false)).catch((e) => { dirty = true; setCloudStatus('Sync failed — retrying', true); console.error('PennyWise cloud sync failed:', e); throw e; });
+        chain = chain.catch(() => { }).then(() => saveCloud(user.id, payload)).then(() => setCloudStatus('Cloud synced', false)).catch((e) => { dirty = true; setCloudStatus('Sync failed — retrying', true); console.error('PennyWise cloud sync failed:', e); throw e; });
         return chain;
       }
       window.pwCloudSyncNow = syncNow;
       function queueSync() {
         if (syncingInternally) return;
         dirty = true; setCloudStatus('Changes pending', false);
-        clearTimeout(timer); timer = setTimeout(() => { syncNow().catch(() => {}); }, 650);
+        clearTimeout(timer); timer = setTimeout(() => { syncNow().catch(() => { }); }, 650);
       }
       Storage.prototype.setItem = function (key, value) { nativeSet.call(this, key, value); if (typeof key === 'string' && key.startsWith(DATA_PREFIX)) queueSync(); };
       Storage.prototype.removeItem = function (key) { nativeRemove.call(this, key); if (typeof key === 'string' && key.startsWith(DATA_PREFIX)) queueSync(); };
       // Ensure data seeded by store.migrate() is persisted after the adapter is installed.
       await sleep(100); queueSync();
-      window.addEventListener('online', () => { if (dirty) syncNow().catch(() => {}); });
-      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && dirty) syncNow().catch(() => {}); });
-      window.addEventListener('beforeunload', () => { if (dirty) { try { syncNow(); } catch (_) {} } });
+      window.addEventListener('online', () => { if (dirty) syncNow().catch(() => { }); });
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && dirty) syncNow().catch(() => { }); });
+      window.addEventListener('beforeunload', () => { if (dirty) { try { syncNow(); } catch (_) { } } });
     } catch (e) {
       console.error('PennyWise boot error:', e);
       showBlocking('Could not load cloud data', 'No data has intentionally been deleted. Check your Supabase SQL setup, RLS policies and internet connection. Details: ' + (e.message || 'Unknown error'), true);
