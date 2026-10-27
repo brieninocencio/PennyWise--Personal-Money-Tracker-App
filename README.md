@@ -1,4 +1,4 @@
-PennyWise -Personal Money Tracker App
+PennyWise - Personal Money Tracker App
 
 Tagline: A personal finance tracker for Filipinos, covering everyday income and expenses plus a built-in utang (debt) and bills ledger called ListaPay.
 
