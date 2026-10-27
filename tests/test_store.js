@@ -1,6 +1,6 @@
 const assert = require('assert');
 const mem = {}; globalThis.localStorage = { getItem:k=>k in mem?mem[k]:null, setItem:(k,v)=>{mem[k]=String(v)}, removeItem:k=>{delete mem[k]} };
-const PW = require('./store.js');
+const PW = require('../js/store.js');
 let passed=0; const t=(name,fn)=>{ try{ Object.keys(mem).forEach(k=>delete mem[k]); fn(); passed++; console.log('PASS',name);}catch(e){console.log('FAIL',name,'\n  ',e.message);process.exitCode=1;} };
 const wait=()=>{ const e=Date.now()+850; while(Date.now()<e); }; // clear duplicate guard
 const eq=(a,b,m)=>assert.strictEqual(Math.round(a*100)/100,b,m);

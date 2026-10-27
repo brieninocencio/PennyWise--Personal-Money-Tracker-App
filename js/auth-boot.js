@@ -142,8 +142,8 @@
       // The loading/error screen above temporarily replaces body contents.
       document.body.innerHTML = INITIAL_BODY_HTML;
       // The original app expects synchronous storage, so keep its store/UI unchanged.
-      await loadScript('store.js');
-      await loadScript('app.js');
+      await loadScript('js/store.js');
+      await loadScript('js/app.js');
       // app.js registers its renderer on DOMContentLoaded; authentication is asynchronous,
       // so explicitly dispatch it after both original scripts have loaded.
       if (document.readyState !== 'loading') document.dispatchEvent(new Event('DOMContentLoaded')); // otherwise the browser's upcoming event will initialize the app
