@@ -1905,3 +1905,36 @@ body {
     font-size: 13px;
   }
 }
+
+/* stop background scroll while a modal is open */
+body.modal-open {
+  overflow: hidden;
+}
+
+.overlay {
+  overscroll-behavior: contain;
+}
+
+.dialog {
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
+  /* dynamic viewport units where supported */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 768px) {
+  .dialog {
+    max-height: 100%;
+    /* relative to the overlay, which JS sizes to the visible area */
+    scroll-padding-bottom: 24px;
+  }
+
+  /* iOS zooms on focus when font-size < 16px */
+  .input,
+  select.input,
+  textarea.input {
+    font-size: 16px;
+  }
+}

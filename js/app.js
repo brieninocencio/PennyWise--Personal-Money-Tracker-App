@@ -53,6 +53,29 @@
     setTimeout(() => t.remove(), 2800);
   }
 
+  /** Keeps an overlay exactly over the *visible* area (shrinks when the mobile keyboard opens). */
+  function fitToVisualViewport(overlay) {
+    const vv = window.visualViewport;
+    if (!vv) return () => { };
+    const apply = () => {
+      overlay.style.top = vv.offsetTop + 'px';
+      overlay.style.left = vv.offsetLeft + 'px';
+      overlay.style.width = vv.width + 'px';
+      overlay.style.height = vv.height + 'px';
+      overlay.style.right = 'auto';
+      overlay.style.bottom = 'auto';
+      // keep the focused field visible inside the dialog
+      const el = document.activeElement;
+      if (el && overlay.contains(el) && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    };
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    apply();
+    return () => { vv.removeEventListener('resize', apply); vv.removeEventListener('scroll', apply); };
+  }
+
   const openModals = [];
   function openModal(opts) {
     const overlay = document.createElement('div'); overlay.className = 'overlay';
@@ -62,11 +85,28 @@
     const body = $('.dialog-body', overlay);
     const prevFocus = document.activeElement;
     const m = { el: overlay, body, live: !!opts.live };
-    m.close = () => { const i = openModals.indexOf(m); if (i >= 0) openModals.splice(i, 1); overlay.remove(); if (prevFocus && prevFocus.focus) try { prevFocus.focus(); } catch (e) { /* gone */ } };
+    let unfit = () => { };
+    m.close = () => {
+      const i = openModals.indexOf(m); if (i >= 0) openModals.splice(i, 1);
+      unfit();
+      overlay.remove();
+      if (!openModals.length) document.body.classList.remove('modal-open');
+      if (prevFocus && prevFocus.focus) try { prevFocus.focus(); } catch (e) { }
+    };
     m.refresh = () => opts.build(body, m);
     overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) m.close(); });
     $('[data-close]', overlay).addEventListener('click', m.close);
-    document.body.appendChild(overlay); openModals.push(m); opts.build(body, m);
+    document.body.appendChild(overlay);
+    document.body.classList.add('modal-open');
+    unfit = fitToVisualViewport(overlay);
+    openModals.push(m); opts.build(body, m);
+
+    // fallback for browsers/keyboards that don't fire visualViewport events promptly
+    overlay.addEventListener('focusin', (e) => {
+      if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) {
+        setTimeout(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 300);
+      }
+    });
     const first = $('input:not([type=hidden]):not([disabled]), select, button.btn', body); if (first && !opts.noFocus) first.focus();
     return m;
   }
