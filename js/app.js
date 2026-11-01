@@ -42,6 +42,7 @@
   };
   const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
   const ACC_ICON = { cash: 'cash', bank: 'bank', ewallet: 'phone', card: 'card' };
+  const LOGO_SRC = 'assets/logo.png';
 
   const CAT_COLORS = { 'Essential Expenses': '#10b981', Food: '#16a34a', Transport: '#3b82f6', Bills: '#ef4444', Financial: '#d97706', Education: '#0d9488', 'Family Social': '#f59e0b', Entertainment: '#8b5cf6', Salary: '#059669', Others: '#6b7280' };
   const catColor = (c) => CAT_COLORS[c] || '#6b7280';
@@ -186,6 +187,10 @@
         <a href="listapay.html" class="${page === 'listapay' ? 'active' : ''}">${icon('list')}ListaPay</a>
         <button type="button" id="moreBtn" class="${page === 'accounts' ? 'active' : ''}">${icon('dots')}More</button>
       </nav>`;
+    const mark = $('.brand-mark', app);
+    const logo = new Image(); logo.alt = ''; logo.decoding = 'async';
+    logo.addEventListener('load', () => { mark.textContent = ''; mark.appendChild(logo); mark.classList.add('has-img'); });
+    logo.src = LOGO_SRC;
     mainParent.insertBefore(app, main); $('.main', app).appendChild(main);
     main.className = 'content';
 
@@ -212,7 +217,19 @@
     });
   }
   function updateProfile() {
-    const n = S.getUserName(); $('#avatar').textContent = n.trim().charAt(0).toUpperCase() || 'B'; $('#uname').textContent = firstName(); $('#popName').textContent = n;
+    const n = S.getUserName(); const initial = n.trim().charAt(0).toUpperCase() || 'B';
+    const av = $('#avatar');
+    const meta = (window.pwUser && window.pwUser.user_metadata) || {};
+    const raw = meta.avatar_url || meta.picture || '';
+    const url = /^https:\/\//i.test(raw) ? raw : '';
+    if (!url) { av.textContent = initial; delete av.dataset.src; }
+    else if (av.dataset.src !== url) {
+      av.dataset.src = url; av.textContent = initial; // initial shows until the photo loads (or if it fails)
+      const img = new Image(); img.alt = ''; img.referrerPolicy = 'no-referrer';
+      img.addEventListener('load', () => { av.textContent = ''; av.appendChild(img); });
+      img.src = url;
+    }
+    $('#uname').textContent = firstName(); $('#popName').textContent = n;
   }
   function renderNotifs() {
     const today = S.todayISO(); const soon = new Date(); soon.setDate(soon.getDate() + 3);
@@ -271,7 +288,7 @@
         guarded(form, (fd) => {
           const name = String(fd.get('name') || '').trim();
           const b = String(fd.get('budget') || '').trim();
-          if (!name) return showErr(form, 'Name can t be empty.');
+          if (!name) return showErr(form, 'Name cannot be empty.');
           if (b !== '' && !(parseFloat(b) >= 0)) return showErr(form, 'Enter a valid budget.');
           S.setUserName(name);
           S.setMonthlyBudget(b === '' ? 0 : b);

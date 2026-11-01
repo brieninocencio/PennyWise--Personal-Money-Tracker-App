@@ -102,6 +102,7 @@
     const user = sessionResult.data && sessionResult.data.session && sessionResult.data.session.user;
     if (!user) return location.replace('auth.html');
     currentUser = user;
+    window.pwUser = user; // read by app.js for the avatar photo
     try {
       const local = snapshot();
       const migrationKey = `pennywise_migration_done_${user.id}`;
