@@ -442,27 +442,6 @@
     [KEYS.TRANSACTIONS, KEYS.LISTAPAY, KEYS.PAYMENTS, KEYS.ACCOUNTS, KEYS.BUDGET, KEYS.SCHEMA].forEach((k) => ls().removeItem(k));
     migrate(); notify();
   }
-  function loadSampleData() {
-    resetAll();
-    const d = new Date(); const iso = (off) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + off); return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`; };
-    const first = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
-    const gcash = addAccount({ name: 'GCash', type: 'ewallet', openingBalance: 2000 }).item;
-    updateAccount(DEFAULT_ACCOUNT_ID, { name: 'Cash', type: 'cash', openingBalance: 6000 });
-    const add = (t) => { lastSig = { sig: '', at: 0 }; return addTransaction(t); };
-    add({ type: 'income', amount: 45000, category: 'Salary', date: first, description: 'Monthly Salary', accountId: gcash.id });
-    add({ type: 'expense', amount: 3200, category: 'Food', date: iso(-3), description: 'Weekly Groceries', accountId: DEFAULT_ACCOUNT_ID });
-    add({ type: 'expense', amount: 650, category: 'Transport', date: iso(-2), description: 'Beep Card Reload & Grab', accountId: DEFAULT_ACCOUNT_ID });
-    add({ type: 'expense', amount: 1200, category: 'Entertainment', date: iso(-1), description: 'Weekend Dinner & Movies', accountId: gcash.id });
-    lastSig = { sig: '', at: 0 };
-    addDebt({ kind: 'person', name: 'Juan Dela Cruz', amount: 500, dueDate: iso(10), note: 'Lunch & load', accountId: DEFAULT_ACCOUNT_ID });
-    lastSig = { sig: '', at: 0 };
-    addDebt({ kind: 'person', name: 'Maria Santos', amount: 1200, dueDate: iso(15), note: '', accountId: gcash.id });
-    lastSig = { sig: '', at: 0 };
-    addDebt({ kind: 'group', name: 'Barkada Group', dueDate: iso(20), note: 'Beach trip', accountId: gcash.id, members: [{ name: 'Ana', amount: 1000 }, { name: 'Ben', amount: 1000 }, { name: 'Carl', amount: 1000 }] });
-    lastSig = { sig: '', at: 0 };
-    addDebt({ kind: 'bill', name: 'Electricity Bill', amount: 1500, dueDate: iso(12), note: 'Pay via GCash' });
-    setMonthlyBudget(20000);
-  }
 
   const api = {
     KEYS, CATEGORIES, ACCOUNT_TYPES, DEFAULT_ACCOUNT_ID,
@@ -473,7 +452,7 @@
     addAccount, updateAccount, deleteAccount,
     addTransaction, updateTransaction, deleteTransaction,
     addDebt, updateDebt, deleteDebt, addPayment, updatePayment, deletePayment,
-    paymentRoom, resetAll, loadSampleData,
+    paymentRoom, resetAll,
   };
   root.PW = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

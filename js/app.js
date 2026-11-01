@@ -39,6 +39,7 @@
     hand: '<path d="M12 2v10M8 6v6M16 6v6M20 9v5a8 8 0 0 1-8 8h-1a8 8 0 0 1-6-3l-2-3a2 2 0 0 1 3-2l2 2V8"/>',
     bank: '<path d="M3 10 12 3l9 7M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"/>', card: '<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20"/>',
     phone: '<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>', check: '<path d="m5 12 5 5L20 7"/>', panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+    logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
   };
   const icon = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
   const ACC_ICON = { cash: 'cash', bank: 'bank', ewallet: 'phone', card: 'card' };
@@ -175,8 +176,7 @@
                 <div class="ph"><strong id="popName"></strong><small>PennyWise Member</small></div>
                 <button type="button" class="menu-item" data-act="name">${icon('edit')} Edit Name</button>
                 <button type="button" class="menu-item" data-act="budget">${icon('target')} Set Monthly Budget</button>
-                <button type="button" class="menu-item" data-act="demo">${icon('plus')} Load Sample Data</button>
-                <button type="button" class="menu-item danger" data-act="reset">${icon('trash')} Reset Data</button>
+                <button type="button" class="menu-item danger" data-act="signout">${icon('logout')} Sign Out</button>
               </div></div>
           </div>
         </header>
@@ -205,13 +205,16 @@
   }
   function menuAction(act) {
     if (act === 'name') openSettings(); else if (act === 'budget') openSettings('budget');
-    else if (act === 'demo') confirmDialog({ title: 'Load sample data?', message: 'This replaces your current accounts, transactions and ListaPay entries with demo data. It cannot be undone.', confirmText: 'Replace with sample', danger: true }).then((y) => { if (y) { S.loadSampleData(); toast('Sample data loaded'); } });
+    else if (act === 'signout') {
+      if (window.pwSignOut) window.pwSignOut();
+      else if (window.pwSupabase) window.pwSupabase.auth.signOut().then(() => location.replace('auth.html'));
+    }
     else if (act === 'reset') confirmDialog({ title: 'Reset all data?', message: 'This permanently deletes every account, transaction, ListaPay entry and your budget.', confirmText: 'Delete everything', danger: true }).then((y) => { if (y) { S.resetAll(); toast('All data reset'); } });
   }
   function openMore() {
     openModal({
       title: 'More', noFocus: true, build(body, m) {
-        body.innerHTML = `<div class="nav" style="color:var(--text)"><a href="accounts.html" style="color:var(--text)">${icon('wallet')}<span>Accounts</span></a><button type="button" data-a="settings" style="color:var(--text)">${icon('gear')}<span>Settings</span></button><button type="button" data-a="demo" style="color:var(--text)">${icon('plus')}<span>Load Sample Data</span></button><button type="button" data-a="reset" style="color:var(--expense)">${icon('trash')}<span>Reset Data</span></button></div>`;
+        body.innerHTML = `<div class="nav" style="color:var(--text)"><a href="accounts.html" style="color:var(--text)">${icon('wallet')}<span>Accounts</span></a><button type="button" data-a="settings" style="color:var(--text)">${icon('gear')}<span>Settings</span></button><button type="button" data-a="reset" style="color:var(--expense)">${icon('trash')}<span>Reset Data</span></button></div>`;
         body.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (!b) return; m.close(); if (b.dataset.a === 'settings') openSettings(); else menuAction(b.dataset.a); });
       }
     });
@@ -259,11 +262,8 @@
           </div>
         </div>
 
-        <!-- Sign Out Action Section -->
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
-          <button type="button" class="btn secondary" id="sSignOut" style="width:100%;color:var(--expense);border-color:var(--border-strong);">
-            Sign Out
-          </button>
+          <button type="button" class="btn secondary" id="sReset" style="width:100%;color:var(--expense);border-color:var(--border-strong);">Reset Data</button>
         </div>
 
         <div class="dialog-actions">
@@ -274,14 +274,7 @@
 
         $('[data-close2]', body).onclick = m.close;
 
-        // Handle Sign Out click
-        $('#sSignOut', body).onclick = (e) => {
-          if (window.pwSignOut) {
-            window.pwSignOut(e.currentTarget);
-          } else {
-            window.pwSupabase?.auth.signOut().then(() => location.replace('auth.html'));
-          }
-        };
+        $('#sReset', body).onclick = () => { m.close(); menuAction('reset'); };
 
         const form = $('form', body);
         if (focus === 'budget') $('#sBudget').focus();
