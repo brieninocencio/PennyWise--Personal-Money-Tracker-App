@@ -14,6 +14,16 @@
   let currentUser = null;
   let bodyReplaced = false;
   let signingOut = false; // blocks any cloud upload once sign-out has begun
+  const revisionKey = (userId) => `pennywise_cloud_revision_${userId}`;
+  const dirtyKey = (userId) => `pennywise_cloud_dirty_${userId}`;
+  const getRevision = (userId) => {
+    const value = Number(localStorage.getItem(revisionKey(userId)));
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  };
+  const setRevision = (userId, revision) => {
+    if (Number.isSafeInteger(Number(revision)) && Number(revision) >= 0) localStorage.setItem(revisionKey(userId), String(revision));
+  };
+  const setDirty = (userId, dirty) => localStorage.setItem(dirtyKey(userId), dirty ? '1' : '0');
   function showBlocking(title, detail, isError) {
 
     document.documentElement.classList.remove('pw-loading');
@@ -44,13 +54,25 @@
     Object.entries(data || {}).forEach(([key, value]) => { if (key.startsWith(DATA_PREFIX) && typeof value === 'string') localStorage.setItem(key, value); });
   }
   async function loadCloud(userId) {
-    const { data, error } = await window.pwSupabase.from(DATA_TABLE).select('payload,updated_at').eq('user_id', userId).maybeSingle();
+    const { data, error } = await window.pwSupabase.from(DATA_TABLE).select('payload,revision,updated_at').eq('user_id', userId).maybeSingle();
     if (error) throw error;
     return data || null;
   }
-  async function saveCloud(userId, payload) {
-    const { error } = await window.pwSupabase.from(DATA_TABLE).upsert({ user_id: userId, payload }, { onConflict: 'user_id' });
+  async function saveCloud(userId, payload, expectedRevision) {
+    const { data, error } = await window.pwSupabase.rpc('save_pennywise_snapshot', {
+      p_payload: payload,
+      p_expected_revision: expectedRevision,
+    });
     if (error) throw error;
+    const result = Array.isArray(data) ? data[0] : data;
+    if (!result || result.status !== 'saved') {
+      const conflict = new Error('PennyWise data changed on another device.');
+      conflict.code = 'PW_SYNC_CONFLICT';
+      conflict.cloud = result || null;
+      throw conflict;
+    }
+    setRevision(userId, result.revision);
+    return result;
   }
   function loadScript(src) {
     return new Promise((resolve, reject) => { const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = () => reject(new Error('Could not load ' + src)); document.body.appendChild(s); });
@@ -120,23 +142,35 @@
           if (hasMeaningfulLocalData(local)) {
             backupLocal(user.id, local);
             const overwrite = confirm('This browser already has finance data, and this account also has cloud data.\\n\\nOK = migrate this browser data to the cloud, replacing the account’s current cloud dataset.\\nCancel = keep the cloud dataset and restore it to this browser.\\n\\nA local backup is saved before either choice.');
-            if (overwrite) { await saveCloud(user.id, local); replaceLocal(local); }
-            else replaceLocal(cloud.payload);
-          } else replaceLocal(cloud.payload);
-          localStorage.setItem(migrationKey, '1');
+            if (overwrite) { await saveCloud(user.id, local, Number(cloud.revision)); replaceLocal(local); }
+            else { replaceLocal(cloud.payload); setRevision(user.id, Number(cloud.revision)); }
+          } else { replaceLocal(cloud.payload); setRevision(user.id, Number(cloud.revision)); }
         } else {
           if (hasMeaningfulLocalData(local)) {
             backupLocal(user.id, local);
             const importLocal = confirm('Existing PennyWise data was found in this browser. Import it into this signed-in account’s cloud storage?\\n\\nOK = upload this data to your account.\\nCancel = keep a local backup but start this account with fresh data.');
-            if (importLocal) { await saveCloud(user.id, local); replaceLocal(local); }
+            if (importLocal) { await saveCloud(user.id, local, null); replaceLocal(local); }
             else replaceLocal({});
           } else {
             replaceLocal({});
             const name = (user.user_metadata && user.user_metadata.username) || (user.email ? user.email.split('@')[0] : 'PennyWise User');
             localStorage.setItem('financeApp_userName', name.slice(0, 40));
-            await saveCloud(user.id, snapshot());
+            await saveCloud(user.id, snapshot(), null);
           }
-          localStorage.setItem(migrationKey, '1');
+        }
+        localStorage.setItem(migrationKey, '1');
+      } else {
+        // A newer snapshot is safe to load only when this browser has no unsynced work.
+        // If it does, preserve the local copy and ask the owner before either version wins.
+        const cloud = await loadCloud(user.id);
+        const knownRevision = getRevision(user.id);
+        if (cloud && (knownRevision === null || Number(cloud.revision) > knownRevision)) {
+          if (localStorage.getItem(dirtyKey(user.id)) === '1') {
+            backupLocal(user.id, local);
+            const keepLocal = confirm('PennyWise data changed on another device while this browser had unsynced changes.\\n\\nOK = keep this browser’s changes and safely save them over the newer cloud copy.\\nCancel = keep the newer cloud copy. Your browser version has been backed up locally either way.');
+            if (keepLocal) await saveCloud(user.id, local, Number(cloud.revision));
+            else { replaceLocal(cloud.payload); setRevision(user.id, Number(cloud.revision)); }
+          } else { replaceLocal(cloud.payload); setRevision(user.id, Number(cloud.revision)); }
         }
       }
       // Restore the existing #page element before loading the original app scripts.
@@ -150,7 +184,7 @@
       if (document.readyState !== 'loading') document.dispatchEvent(new Event('DOMContentLoaded')); // otherwise the browser's upcoming event will initialize the app
       requestAnimationFrame(() => document.documentElement.classList.remove('pw-loading'));
       addCloudControls(user, 'Cloud ready');
-      let timer = null, chain = Promise.resolve(), dirty = false;
+      let timer = null, chain = Promise.resolve(), dirty = localStorage.getItem(dirtyKey(user.id)) === '1';
       const nativeSet = Storage.prototype.setItem, nativeRemove = Storage.prototype.removeItem;
       let syncingInternally = false;
       async function syncNow() {
@@ -158,13 +192,26 @@
         dirty = false;
         const payload = snapshot();
         setCloudStatus('Saving…', false);
-        chain = chain.catch(() => { }).then(() => saveCloud(user.id, payload)).then(() => setCloudStatus('Cloud synced', false)).catch((e) => { dirty = true; setCloudStatus('Sync failed — retrying', true); console.error('PennyWise cloud sync failed:', e); throw e; });
+        chain = chain.catch(() => { }).then(() => saveCloud(user.id, payload, getRevision(user.id))).then(() => { setDirty(user.id, false); setCloudStatus('Cloud synced', false); }).catch((e) => {
+          if (e && e.code === 'PW_SYNC_CONFLICT' && e.cloud && e.cloud.payload) {
+            backupLocal(user.id, payload);
+            const keepLocal = confirm('PennyWise data changed on another device before this save completed.\n\nOK = keep this browser’s changes and use them as a local backup only.\nCancel = replace this browser with the newer cloud copy. No cloud data will be overwritten automatically.');
+            syncingInternally = true;
+            try {
+              if (!keepLocal) { replaceLocal(e.cloud.payload); setRevision(user.id, Number(e.cloud.revision)); }
+              dirty = false; setDirty(user.id, false);
+              setCloudStatus(keepLocal ? 'Sync conflict — local backup kept' : 'Cloud version restored', keepLocal);
+            } finally { syncingInternally = false; }
+            return;
+          }
+          dirty = true; setDirty(user.id, true); setCloudStatus('Sync failed — retrying', true); console.error('PennyWise cloud sync failed:', e); throw e;
+        });
         return chain;
       }
       window.pwCloudSyncNow = syncNow;
       function queueSync() {
         if (syncingInternally || signingOut) return;
-        dirty = true; setCloudStatus('Changes pending', false);
+        dirty = true; setDirty(user.id, true); setCloudStatus('Changes pending', false);
         clearTimeout(timer); timer = setTimeout(() => { syncNow().catch(() => { }); }, 650);
       }
       Storage.prototype.setItem = function (key, value) { nativeSet.call(this, key, value); if (typeof key === 'string' && key.startsWith(DATA_PREFIX)) queueSync(); };
