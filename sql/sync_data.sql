@@ -27,19 +27,19 @@ begin
   end if;
 
   if p_expected_revision is not null then
-    update public.pennywise_user_data
-       set payload = p_payload, revision = revision + 1
-     where user_id = current_user_id and revision = p_expected_revision
-     returning revision into saved_revision;
+    update public.pennywise_user_data as d
+       set payload = p_payload, revision = d.revision + 1
+     where d.user_id = current_user_id and d.revision = p_expected_revision
+     returning d.revision into saved_revision;
     if found then
       return query select 'saved'::text, saved_revision, p_payload;
       return;
     end if;
   else
-    insert into public.pennywise_user_data (user_id, payload, revision)
+    insert into public.pennywise_user_data as d (user_id, payload, revision)
     values (current_user_id, p_payload, 1)
     on conflict (user_id) do nothing
-    returning revision into saved_revision;
+    returning d.revision into saved_revision;
     if found then
       return query select 'saved'::text, saved_revision, p_payload;
       return;
